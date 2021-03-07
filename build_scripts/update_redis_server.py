@@ -2,17 +2,23 @@
 """ Update the redis.submodule in the redislite repo to the latest stable version """
 import os
 import pathlib
+import re
 import shutil
 import urllib.request
 import tarfile
 import tempfile
 
 
-redis_version = os.environ.get('REDIS_VERSION', '6.2.14')
-url = f'http://download.redis.io/releases/redis-{redis_version}.tar.gz'
+def latest_stable_url():
+    with urllib.request.urlopen("http://download.redis.io/releases/") as f:
+        index = f.read().decode("utf-8")
+    versions = re.findall(r"href=.*?redis[._-]v?(\d+(?:\.\d+)+)\.t", index)
+    versions.sort(key=lambda s: list(map(int, s.split('.'))))
+    return "http://download.redis.io/releases/redis-{}.tar.gz".format(versions[-1])
 
 
 if __name__ == "__main__":
+    url = latest_stable_url()
     if pathlib.Path('redis_submodule').exists():
         shutil.rmtree('redis.submodule')
     with tempfile.TemporaryDirectory() as tempdir:
@@ -20,13 +26,13 @@ if __name__ == "__main__":
         ftpstream = urllib.request.urlopen(url)
         tf = tarfile.open(fileobj=ftpstream, mode="r|gz")
         directory = tf.next().name
-        
+
         print(f'Extracting archive {directory}')
         tf.extractall(tempdir)
-        
+
         print(f'Moving {os.path.join(tempdir, directory)} -> redis.submodule')
         shutil.move(os.path.join(tempdir, directory), 'redis.submodule')
-        
+
         # print('Updating jemalloc')
         # os.system('(cd redis.submodule;./deps/update-jemalloc.sh 4.0.4)')
         
